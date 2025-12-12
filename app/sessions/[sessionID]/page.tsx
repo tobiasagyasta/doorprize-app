@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useParams } from "next/navigation";
+import Link from "next/link";
 
 type ImportSummary = {
   sessionId: string;
@@ -68,6 +69,7 @@ export default function SessionPage() {
   const [sessionName, setSessionName] = useState<string | null>(null);
   const [sessionError, setSessionError] = useState<string | null>(null);
   const [sessionLoading, setSessionLoading] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
 
   const fetchContestants = useCallback(async () => {
     if (!sessionId) return;
@@ -158,6 +160,10 @@ export default function SessionPage() {
     fetchSessionDetails();
     fetchDrawStatus();
   }, [fetchContestants, fetchPrizes, fetchSessionDetails, fetchDrawStatus]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [contestants]);
 
   const handleUpload = async () => {
     if (!file) {
@@ -307,6 +313,12 @@ export default function SessionPage() {
       await fetchContestants();
       await fetchPrizes();
       await fetchDrawStatus();
+      if (data.drawId) {
+        window.open(
+          `/sessions/${sessionId}/draws/${data.drawId}/present`,
+          "_blank"
+        );
+      }
     } catch (err) {
       setDrawError((err as Error).message);
     } finally {
@@ -322,9 +334,20 @@ export default function SessionPage() {
     window.location.href = `/api/sessions/${sessionId}/report.csv`;
   };
 
+  const pageSize = 10;
+  const totalPages = Math.max(1, Math.ceil(contestants.length / pageSize));
+  const startIndex = (currentPage - 1) * pageSize;
+  const displayedContestants = contestants.slice(
+    startIndex,
+    startIndex + pageSize
+  );
+
   return (
     <div className="mx-auto flex max-w-2xl flex-col gap-4 p-6">
       <div className="flex flex-col gap-1">
+        <Link className="underline hover:text-blue-300" href={".."}>
+          Back Home
+        </Link>
         <h1 className="text-2xl font-semibold">
           {sessionLoading
             ? "Loading session..."
@@ -340,15 +363,52 @@ export default function SessionPage() {
         <label className="text-sm font-medium">
           CSV file (.csv or text/csv)
         </label>
-        <input
-          type="file"
-          accept=".csv,text/csv"
-          onChange={(event) => {
-            const uploadedFile = event.target.files?.[0] ?? null;
-            setFile(uploadedFile);
-            setUploadError(null);
-          }}
-        />
+        <div className="flex items-center justify-center w-full">
+          <label
+            htmlFor="dropzone-file"
+            className="flex h-48 w-full cursor-pointer flex-col items-center justify-center rounded border border-dashed border-gray-400 bg-gray-50 hover:bg-gray-100"
+          >
+            <div className="flex flex-col items-center justify-center px-4 text-center text-sm text-gray-700">
+              <svg
+                className="mb-3 h-8 w-8 text-gray-500"
+                aria-hidden="true"
+                xmlns="http://www.w3.org/2000/svg"
+                width="24"
+                height="24"
+                fill="none"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  stroke="currentColor"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth="2"
+                  d="M15 17h3a3 3 0 0 0 0-6h-.025a5.56 5.56 0 0 0 .025-.5A5.5 5.5 0 0 0 7.207 9.021C7.137 9.017 7.071 9 7 9a4 4 0 1 0 0 8h2.167M12 19v-9m0 0-2 2m2-2 2 2"
+                />
+              </svg>
+              <p className="font-semibold">Click to upload or drag and drop</p>
+              <p className="text-xs text-gray-500">
+                CSV only. Duplicate/empty names are skipped automatically.
+              </p>
+              {file && (
+                <p className="mt-2 text-xs text-gray-700">
+                  Selected: <span className="font-medium">{file.name}</span>
+                </p>
+              )}
+            </div>
+            <input
+              id="dropzone-file"
+              type="file"
+              accept=".csv,text/csv"
+              className="hidden"
+              onChange={(event) => {
+                const uploadedFile = event.target.files?.[0] ?? null;
+                setFile(uploadedFile);
+                setUploadError(null);
+              }}
+            />
+          </label>
+        </div>
         <button
           className="rounded bg-blue-600 px-4 py-2 text-white disabled:cursor-not-allowed disabled:bg-blue-300"
           onClick={handleUpload}
@@ -410,7 +470,7 @@ export default function SessionPage() {
             </tr>
           </thead>
           <tbody>
-            {contestants.map((contestant) => (
+            {displayedContestants.map((contestant) => (
               <tr key={contestant.id} className="border-b last:border-0">
                 <td className="py-2 pr-4">{contestant.name}</td>
                 <td className="py-2">
@@ -435,6 +495,31 @@ export default function SessionPage() {
             )}
           </tbody>
         </table>
+        {contestants.length > 0 && (
+          <div className="mt-3 flex items-center justify-between text-sm">
+            <span>
+              Page {currentPage} of {totalPages}
+            </span>
+            <div className="flex gap-2">
+              <button
+                className="rounded border px-3 py-1 disabled:opacity-50"
+                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                disabled={currentPage === 1}
+              >
+                Previous
+              </button>
+              <button
+                className="rounded border px-3 py-1 disabled:opacity-50"
+                onClick={() =>
+                  setCurrentPage((p) => Math.min(totalPages, p + 1))
+                }
+                disabled={currentPage === totalPages}
+              >
+                Next
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="flex flex-col gap-2 rounded border border-gray-200 p-4 shadow-sm">

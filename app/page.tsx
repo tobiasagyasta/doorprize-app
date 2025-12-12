@@ -14,6 +14,7 @@ export default function Home() {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [deleting, setDeleting] = useState<string | null>(null);
   const router = useRouter();
 
   const fetchSessions = async () => {
@@ -58,6 +59,23 @@ export default function Home() {
     router.push(`/sessions/${session.id}`);
   }
 
+  async function deleteSession(id: string) {
+    setError(null);
+    setDeleting(id);
+    try {
+      const res = await fetch(`/api/sessions/${id}`, { method: "DELETE" });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data?.error || "Failed to delete session");
+      }
+      await fetchSessions();
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setDeleting(null);
+    }
+  }
+
   return (
     <main className="mx-auto flex max-w-3xl flex-col gap-4 p-6">
       <h1 className="text-3xl font-semibold">Sessions</h1>
@@ -86,13 +104,20 @@ export default function Home() {
         ) : (
           <ul className="space-y-2">
             {sessions.map((session) => (
-              <li key={session.id}>
+              <li key={session.id} className="flex items-center justify-between gap-2">
                 <Link
                   href={`/sessions/${session.id}`}
                   className="text-blue-700 underline"
                 >
                   {session.name}
                 </Link>
+                <button
+                  className="rounded border border-red-500 px-3 py-1 text-sm text-red-600 hover:bg-red-50 disabled:opacity-50"
+                  onClick={() => deleteSession(session.id)}
+                  disabled={deleting === session.id}
+                >
+                  {deleting === session.id ? "Deleting..." : "Delete"}
+                </button>
               </li>
             ))}
           </ul>

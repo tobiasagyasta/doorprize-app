@@ -38,3 +38,36 @@ export async function GET(req: Request, context: Params) {
 
   return NextResponse.json(session);
 }
+
+export async function DELETE(req: Request, context: Params) {
+  const params = await Promise.resolve(context?.params);
+  const sessionId =
+    normalizeSessionId(params?.sessionId) ||
+    new URL(req.url).pathname.split("/")[3];
+
+  if (!sessionId) {
+    return NextResponse.json(
+      { error: "Session id is required in the route" },
+      { status: 400 }
+    );
+  }
+
+  const session = await prisma.session.findUnique({
+    where: { id: sessionId },
+    select: { id: true },
+  });
+
+  if (!session) {
+    return NextResponse.json({ error: "Session not found" }, { status: 404 });
+  }
+
+  await prisma.$transaction([
+    prisma.winner.deleteMany({ where: { draw: { sessionId } } }),
+    prisma.draw.deleteMany({ where: { sessionId } }),
+    prisma.prize.deleteMany({ where: { sessionId } }),
+    prisma.contestant.deleteMany({ where: { sessionId } }),
+    prisma.session.delete({ where: { id: sessionId } }),
+  ]);
+
+  return NextResponse.json({ deleted: true });
+}
