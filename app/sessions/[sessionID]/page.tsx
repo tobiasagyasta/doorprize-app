@@ -65,6 +65,9 @@ export default function SessionPage() {
   const [drawWinners, setDrawWinners] = useState<DrawWinner[] | null>(null);
   const [drawCount, setDrawCount] = useState<number | null>(null);
   const [drawStatusError, setDrawStatusError] = useState<string | null>(null);
+  const [sessionName, setSessionName] = useState<string | null>(null);
+  const [sessionError, setSessionError] = useState<string | null>(null);
+  const [sessionLoading, setSessionLoading] = useState(false);
 
   const fetchContestants = useCallback(async () => {
     if (!sessionId) return;
@@ -112,6 +115,27 @@ export default function SessionPage() {
     }
   }, [sessionId]);
 
+  const fetchSessionDetails = useCallback(async () => {
+    if (!sessionId) return;
+    setSessionLoading(true);
+    setSessionError(null);
+    try {
+      const res = await fetch(`/api/sessions/${sessionId}`);
+      const data = (await res.json().catch(() => ({}))) as {
+        name?: string;
+        error?: string;
+      };
+      if (!res.ok) {
+        throw new Error(data?.error || "Failed to load session");
+      }
+      setSessionName(data.name ?? "");
+    } catch (err) {
+      setSessionError((err as Error).message);
+    } finally {
+      setSessionLoading(false);
+    }
+  }, [sessionId]);
+
   const fetchDrawStatus = useCallback(async () => {
     if (!sessionId) return;
     setDrawStatusError(null);
@@ -131,8 +155,9 @@ export default function SessionPage() {
   useEffect(() => {
     fetchContestants();
     fetchPrizes();
+    fetchSessionDetails();
     fetchDrawStatus();
-  }, [fetchContestants, fetchPrizes, fetchDrawStatus]);
+  }, [fetchContestants, fetchPrizes, fetchSessionDetails, fetchDrawStatus]);
 
   const handleUpload = async () => {
     if (!file) {
@@ -300,10 +325,15 @@ export default function SessionPage() {
   return (
     <div className="mx-auto flex max-w-2xl flex-col gap-4 p-6">
       <div className="flex flex-col gap-1">
-        <h1 className="text-2xl font-semibold">Session {sessionId}</h1>
+        <h1 className="text-2xl font-semibold">
+          {sessionLoading
+            ? "Loading session..."
+            : sessionName ?? `Session ${sessionId}`}
+        </h1>
         <p className="text-sm text-gray-500">
           Upload a CSV of contestant names to import them into this session.
         </p>
+        {sessionError && <p className="text-sm text-red-600">{sessionError}</p>}
       </div>
 
       <div className="flex flex-col gap-2 rounded border border-gray-200 p-4 shadow-sm">
