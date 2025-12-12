@@ -1,0 +1,63 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+model Session {
+  id        String   @id @default(cuid())
+  name      String
+  createdAt DateTime @default(now())
+  contestants Contestant[]
+  prizes     Prize[]
+  draws      Draw[]
+}
+
+model Contestant {
+  id        String   @id @default(cuid())
+  sessionId String
+  session   Session @relation(fields: [sessionId], references: [id])
+  name      String
+  winner    Winner?
+
+  @@unique([sessionId, name])
+}
+
+model Prize {
+  id        String   @id @default(cuid())
+  sessionId String
+  session   Session @relation(fields: [sessionId], references: [id])
+  name      String
+  quantity  Int
+  createdAt DateTime @default(now())
+  draws     Draw[]
+}
+
+model Draw {
+  id        String   @id @default(cuid())
+  sessionId String
+  session   Session @relation(fields: [sessionId], references: [id])
+  prizeId   String
+  prize     Prize   @relation(fields: [prizeId], references: [id])
+  createdAt DateTime @default(now())
+  winners   Winner[]
+}
+
+model Winner {
+  id           String     @id @default(cuid())
+  drawId       String
+  draw         Draw       @relation(fields: [drawId], references: [id])
+  contestantId String     @unique
+  contestant   Contestant @relation(fields: [contestantId], references: [id])
+  prizeName    String
+  createdAt    DateTime   @default(now())
+}
