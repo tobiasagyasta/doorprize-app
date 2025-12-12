@@ -57,13 +57,29 @@ export async function GET(req: Request, context: Params) {
 
   const draws = await prisma.draw.findMany({
     where: { sessionId },
-    select: { _count: { select: { winners: true } } },
+    orderBy: { createdAt: "desc" },
+    select: {
+      id: true,
+      createdAt: true,
+      prize: { select: { id: true, name: true } },
+      _count: { select: { winners: true } },
+    },
   });
 
   const drawCount = draws.length;
   const totalWinners = draws.reduce((sum, d) => sum + d._count.winners, 0);
 
-  return NextResponse.json({ sessionId, drawCount, totalWinners });
+  return NextResponse.json({
+    sessionId,
+    drawCount,
+    totalWinners,
+    draws: draws.map((d) => ({
+      id: d.id,
+      createdAt: d.createdAt,
+      prize: d.prize,
+      winners: d._count.winners,
+    })),
+  });
 }
 
 export async function POST(req: Request, context: Params) {

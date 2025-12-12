@@ -66,6 +66,9 @@ export default function SessionPage() {
   const [drawWinners, setDrawWinners] = useState<DrawWinner[] | null>(null);
   const [drawCount, setDrawCount] = useState<number | null>(null);
   const [drawStatusError, setDrawStatusError] = useState<string | null>(null);
+  const [drawList, setDrawList] = useState<
+    { id: string; createdAt: string; prize?: { id: string; name: string } }[]
+  >([]);
   const [sessionName, setSessionName] = useState<string | null>(null);
   const [sessionError, setSessionError] = useState<string | null>(null);
   const [sessionLoading, setSessionLoading] = useState(false);
@@ -147,8 +150,16 @@ export default function SessionPage() {
         const data = await res.json().catch(() => ({}));
         throw new Error(data?.error || "Failed to load draw status");
       }
-      const data = (await res.json()) as { drawCount: number };
+      const data = (await res.json()) as {
+        drawCount: number;
+        draws?: {
+          id: string;
+          createdAt: string;
+          prize?: { id: string; name: string };
+        }[];
+      };
       setDrawCount(data.drawCount);
+      setDrawList(data.draws ?? []);
     } catch (err) {
       setDrawStatusError((err as Error).message);
     }
@@ -654,13 +665,28 @@ export default function SessionPage() {
             Enter an integer not exceeding eligible or remaining.
           </p>
         )}
-        {drawWinners && drawWinners.length > 0 && (
+        {drawList.length > 0 && (
           <div className="rounded border border-gray-200 p-3">
-            <h3 className="font-semibold">Winners</h3>
+            <h3 className="font-semibold">Presentation Links</h3>
             <ul className="mt-2 space-y-1 text-sm">
-              {drawWinners.map((winner) => (
-                <li key={winner.contestantId}>
-                  {winner.name} — {winner.prizeName}
+              {drawList.map((draw) => (
+                <li key={draw.id} className="flex items-center justify-between gap-2">
+                  <div>
+                    <p className="font-medium">
+                      {draw.prize?.name ?? "Prize"}
+                    </p>
+                    <p className="text-xs text-gray-600">
+                      {new Date(draw.createdAt).toLocaleString()}
+                    </p>
+                  </div>
+                  <a
+                    href={`/sessions/${sessionId}/draws/${draw.id}/present`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-blue-700 underline"
+                  >
+                    Open
+                  </a>
                 </li>
               ))}
             </ul>

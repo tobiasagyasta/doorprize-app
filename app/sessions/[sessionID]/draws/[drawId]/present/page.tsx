@@ -9,6 +9,11 @@ type Winner = {
   name: string;
 };
 
+type Contestant = {
+  id: string;
+  name: string;
+};
+
 type DrawData = {
   drawId: string;
   sessionId: string;
@@ -28,6 +33,10 @@ export default function PresentDrawPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
+  const [eligibleContestants, setEligibleContestants] = useState<Contestant[]>(
+    []
+  );
+
   const [phase, setPhase] = useState<Phase>("ROLLING");
   const [activeIndex, setActiveIndex] = useState(0);
 
@@ -38,16 +47,32 @@ export default function PresentDrawPage() {
       setError(null);
 
       try {
-        const res = await fetch(`/api/sessions/${sessionId}/draws/${drawId}`, {
-          cache: "no-store",
-        });
-        const json = await res.json();
-        if (!res.ok) throw new Error(json?.error || "Failed to load draw");
+        const [drawRes, eligibleRes] = await Promise.all([
+          fetch(`/api/sessions/${sessionId}/draws/${drawId}`, {
+            cache: "no-store",
+          }),
+          fetch(`/api/sessions/${sessionId}/contestants?eligible=true`, {
+            cache: "no-store",
+          }),
+        ]);
 
-        const parsed = json as DrawData;
+        const drawJson = await drawRes.json();
+        if (!drawRes.ok)
+          throw new Error(drawJson?.error || "Failed to load draw");
+
+        const eligibleJson = await eligibleRes.json();
+        if (!eligibleRes.ok)
+          throw new Error(
+            eligibleJson?.error || "Failed to load eligible contestants"
+          );
+
+        const parsed = drawJson as DrawData;
         setData(parsed);
+        setEligibleContestants(
+          (eligibleJson.contestants as Contestant[] | undefined) ?? []
+        );
         setActiveIndex(0);
-        setPhase("ROLLING");
+        setPhase((parsed.winners?.length ?? 0) === 1 ? "ROLLING" : "REVEALED");
       } catch (err) {
         setError((err as Error).message);
       } finally {
@@ -59,18 +84,44 @@ export default function PresentDrawPage() {
   }, [sessionId, drawId]);
 
   const winners = data?.winners ?? [];
+  const rollingPool =
+    winners.length === 1 && eligibleContestants.length > 0
+      ? eligibleContestants.map((c) => ({
+          contestantId: c.id,
+          name: c.name,
+        }))
+      : winners;
+
+  useEffect(() => {
+    setActiveIndex(0);
+    if (winners.length === 1) {
+      setPhase("ROLLING");
+    } else if (winners.length > 1) {
+      setPhase("REVEALED");
+    }
+  }, [winners.length]);
 
   // Rolling ticker: only runs in ROLLING phase
   useEffect(() => {
     if (phase !== "ROLLING") return;
-    if (winners.length === 0) return;
+    if (winners.length !== 1) return;
+    if (rollingPool.length === 0) return;
 
     const timer = setInterval(() => {
-      setActiveIndex((prev) => (prev + 1) % winners.length);
+      setActiveIndex((prev) => {
+        if (rollingPool.length <= 1) return 0;
+
+        let next;
+        do {
+          next = Math.floor(Math.random() * rollingPool.length);
+        } while (next === prev);
+
+        return next;
+      });
     }, 140); // fast roll; tweak for drama
 
     return () => clearInterval(timer);
-  }, [phase, winners.length]);
+  }, [phase, winners.length, rollingPool.length]);
 
   // Winner grid animation (simple, readable)
   const gridVariants = useMemo(
@@ -99,8 +150,8 @@ export default function PresentDrawPage() {
   };
 
   return (
-    <div className="min-h-screen  bg-linear-to-br from-black via-gray-900 to-black text-white">
-      <div className="mx-auto flex w-full max-w-8xl flex-col gap-10 px-6 py-12">
+    <div className="min-h-screen bg-linear-to-br from-black via-gray-900 to-black text-white">
+      <div className="mx-auto flex w-full max-w-7xl flex-col gap-10 px-6 py-12">
         <header className="text-center">
           <p className="text-sm uppercase text-gray-400">
             Session {data?.sessionId ?? sessionId}
@@ -119,7 +170,7 @@ export default function PresentDrawPage() {
 
         {/* ROLLING VIEW */}
         <AnimatePresence mode="wait">
-          {phase === "ROLLING" && (
+          {phase === "ROLLING" && winners.length === 1 && (
             <motion.div
               key="rolling"
               initial={{ opacity: 0, y: 16 }}
@@ -138,20 +189,20 @@ export default function PresentDrawPage() {
                   {/* This animates between names without showing the whole list */}
                   <AnimatePresence mode="popLayout">
                     <motion.span
-                      key={winners[activeIndex]?.contestantId || "empty"}
+                      key={rollingPool[activeIndex]?.contestantId || "empty"}
                       initial={{ opacity: 0, y: 18, filter: "blur(6px)" }}
                       animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
                       exit={{ opacity: 0, y: -18, filter: "blur(6px)" }}
                       transition={{ duration: 0.18, ease: "easeOut" }}
                       className="block text-center leading-tight text-white drop-shadow-[0_6px_24px_rgba(0,0,0,0.65)]"
                       style={{
-                        fontSize: "clamp(38px, 5vw, 76px)",
+                        fontSize: "clamp(38px, 5vw, 50px)",
                         fontWeight: 800,
                         letterSpacing: "-0.01em",
                         wordBreak: "break-word",
                       }}
                     >
-                      {winners[activeIndex]?.name ?? ""}
+                      {rollingPool[activeIndex]?.name ?? ""}
                     </motion.span>
                   </AnimatePresence>
                 </div>
@@ -168,7 +219,7 @@ export default function PresentDrawPage() {
 
         {/* REVEALED VIEW */}
         <AnimatePresence mode="wait">
-          {phase === "REVEALED" && (
+          {(phase === "REVEALED" || winners.length > 1) && (
             <motion.div
               key="revealed"
               initial={{ opacity: 0, y: 16 }}
@@ -196,7 +247,7 @@ export default function PresentDrawPage() {
                       className="block whitespace-normal text-white drop-shadow-[0_4px_14px_rgba(0,0,0,0.55)]"
                       style={{
                         fontWeight: 800,
-                        fontSize: "clamp(30px, 3.5vw, 40px)",
+                        fontSize: "clamp(30px, 3vw, 35px)",
                         wordBreak: "break-word",
                         lineHeight: 1.05,
                       }}
@@ -214,25 +265,25 @@ export default function PresentDrawPage() {
       </div>
 
       {/* Controls */}
-      <div className="fixed bottom-4 right-4 flex gap-2 text-sm text-white/80">
-        {phase === "ROLLING" ? (
-          <button
-            className="rounded bg-white/10 px-3 py-2 hover:bg-white/20"
-            onClick={stopAndReveal}
-            disabled={winners.length === 0}
-          >
-            ⏹ Stop & Reveal
-          </button>
-        ) : (
-          <button
-            className="rounded bg-white/10 px-3 py-2 hover:bg-white/20"
-            onClick={restartRolling}
-            disabled={winners.length === 0}
-          >
-            🔄 Roll Again
-          </button>
-        )}
-      </div>
+      {winners.length === 1 && (
+        <div className="fixed bottom-4 right-4 flex gap-2 text-sm text-white/80">
+          {phase === "ROLLING" ? (
+            <button
+              className="rounded bg-white/10 px-3 py-2 hover:bg-white/20"
+              onClick={stopAndReveal}
+            >
+              ⏹ Stop & Reveal
+            </button>
+          ) : (
+            <button
+              className="rounded bg-white/10 px-3 py-2 hover:bg-white/20"
+              onClick={restartRolling}
+            >
+              🔄 Roll Again
+            </button>
+          )}
+        </div>
+      )}
     </div>
   );
 }

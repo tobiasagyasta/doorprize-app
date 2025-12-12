@@ -12,9 +12,14 @@ function normalizeSessionId(raw: string | string[] | undefined): string | null {
 
 export async function GET(req: Request, context: Params) {
   const params = await Promise.resolve(context?.params);
+  const url = new URL(req.url);
   const sessionId =
     normalizeSessionId(params?.sessionId) ||
-    new URL(req.url).pathname.split("/")[3];
+    url.pathname.split("/")[3];
+  const eligibleParam = url.searchParams.get("eligible");
+  const filterEligible =
+    eligibleParam !== null &&
+    ["true", "1", "yes"].includes(eligibleParam.toLowerCase());
 
   if (!sessionId) {
     return NextResponse.json(
@@ -32,14 +37,15 @@ export async function GET(req: Request, context: Params) {
     return NextResponse.json({ error: "Session not found" }, { status: 404 });
   }
 
-  const contestants = await prisma.contestant.findMany({
-    where: { sessionId },
-    include: { winner: true },
-    orderBy: { name: "asc" },
-  });
-
-  const total = contestants.length;
-  const eligible = contestants.filter((c) => !c.winner).length;
+  const [contestants, total, eligible] = await Promise.all([
+    prisma.contestant.findMany({
+      where: { sessionId, ...(filterEligible ? { winner: null } : {}) },
+      include: { winner: true },
+      orderBy: { name: "asc" },
+    }),
+    prisma.contestant.count({ where: { sessionId } }),
+    prisma.contestant.count({ where: { sessionId, winner: null } }),
+  ]);
 
   return NextResponse.json({
     sessionId,
