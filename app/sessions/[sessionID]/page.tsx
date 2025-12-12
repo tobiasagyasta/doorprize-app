@@ -172,7 +172,6 @@ export default function SessionPage() {
   const quantityInvalid =
     !Number.isInteger(parsedQuantity) ||
     parsedQuantity < 1 ||
-    parsedQuantity > 50 ||
     (eligibleContestants !== null && parsedQuantity > eligibleContestants);
 
   const handlePrizeSubmit = async () => {
@@ -226,7 +225,6 @@ export default function SessionPage() {
   const drawQuantityInvalid =
     !Number.isInteger(parsedDrawQuantity) ||
     parsedDrawQuantity < 1 ||
-    parsedDrawQuantity > 50 ||
     (eligibleContestants !== null &&
       parsedDrawQuantity > eligibleContestants) ||
     (selectedPrize?.remaining !== undefined &&
@@ -476,7 +474,7 @@ export default function SessionPage() {
         {prizeError && <p className="text-sm text-red-600">{prizeError}</p>}
         {quantityInvalid && prizeQuantity !== "" && (
           <p className="text-sm text-orange-700">
-            Enter an integer between 1 and 50 not exceeding eligible contestants.
+            Enter an integer not exceeding eligible contestants.
           </p>
         )}
       </div>
@@ -538,7 +536,7 @@ export default function SessionPage() {
         {drawError && <p className="text-sm text-red-600">{drawError}</p>}
         {drawQuantityInvalid && drawQuantity !== "" && (
           <p className="text-sm text-orange-700">
-            Enter an integer between 1 and 50, not exceeding eligible or remaining.
+            Enter an integer not exceeding eligible or remaining.
           </p>
         )}
         {drawWinners && drawWinners.length > 0 && (
