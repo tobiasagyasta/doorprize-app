@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useParams } from "next/navigation";
 import Confetti from "react-confetti";
@@ -76,7 +76,9 @@ export default function PresentDrawPage() {
           (eligibleJson.contestants as Contestant[] | undefined) ?? []
         );
         setActiveIndex(0);
-        setPhase((parsed.winners?.length ?? 0) === 1 ? "ROLLING" : "REVEALED");
+        setPhase((prev) =>
+          (parsed.winners?.length ?? 0) > 0 ? "ROLLING" : prev
+        );
       } catch (err) {
         setError((err as Error).message);
       } finally {
@@ -89,20 +91,30 @@ export default function PresentDrawPage() {
 
   const winners = data?.winners ?? [];
   const rollingPool =
-    winners.length === 1 && eligibleContestants.length > 0
+    eligibleContestants.length > 0
       ? eligibleContestants.map((c) => ({
           contestantId: c.id,
           name: c.name,
         }))
       : winners;
+  const poolLen = rollingPool.length;
 
+  const stride = useMemo(() => {
+    if (poolLen <= 1) return 1;
+    return Math.min(37, Math.max(3, Math.floor(poolLen / 3)));
+  }, [poolLen]);
+
+  const getRollingIndex = useMemo(() => {
+    if (poolLen === 0) return (_cardIndex: number) => 0;
+    return (cardIndex: number) => (activeIndex + cardIndex * stride) % poolLen;
+  }, [activeIndex, poolLen, stride]);
+
+  const lastWinnerCount = useRef(0);
   useEffect(() => {
+    if (winners.length === lastWinnerCount.current) return;
+    lastWinnerCount.current = winners.length;
     setActiveIndex(0);
-    if (winners.length === 1) {
-      setPhase("ROLLING");
-    } else if (winners.length > 1) {
-      setPhase("REVEALED");
-    }
+    if (winners.length > 0) setPhase("ROLLING");
   }, [winners.length]);
 
   useEffect(() => {
@@ -149,16 +161,15 @@ export default function PresentDrawPage() {
   // Rolling ticker: only runs in ROLLING phase
   useEffect(() => {
     if (phase !== "ROLLING") return;
-    if (winners.length !== 1) return;
-    if (rollingPool.length === 0) return;
+    if (poolLen === 0) return;
 
     const timer = setInterval(() => {
       setActiveIndex((prev) => {
-        if (rollingPool.length <= 1) return 0;
+        if (poolLen <= 1) return 0;
 
         let next;
         do {
-          next = Math.floor(Math.random() * rollingPool.length);
+          next = Math.floor(Math.random() * poolLen);
         } while (next === prev);
 
         return next;
@@ -166,7 +177,7 @@ export default function PresentDrawPage() {
     }, 140); // fast roll; tweak for drama
 
     return () => clearInterval(timer);
-  }, [phase, winners.length, rollingPool.length]);
+  }, [phase, poolLen]);
 
   // Winner grid animation (simple, readable)
   const gridVariants = useMemo(
@@ -203,30 +214,6 @@ export default function PresentDrawPage() {
           delay: i * 0.08,
         },
         y: { duration: 0.6, delay: i * 0.08 },
-      },
-    }),
-  };
-
-  const nameVariants: Variants = {
-    hidden: { opacity: 0, scale: 0.85, y: 10, rotate: -2 },
-    show: (i: number) => ({
-      opacity: 1,
-      scale: [0.85, 1.2, 1],
-      y: [10, -6, 0],
-      rotate: [-2, 2, 0],
-      transition: {
-        opacity: { duration: 0.25, delay: 0.1 + i * 0.08 },
-        scale: {
-          duration: 0.55,
-          ease: [0.18, 0.9, 0.3, 1.1],
-          delay: 0.1 + i * 0.08,
-        },
-        rotate: {
-          duration: 0.55,
-          ease: [0.18, 0.9, 0.3, 1.1],
-          delay: 0.1 + i * 0.08,
-        },
-        y: { duration: 0.55, delay: 0.1 + i * 0.08 },
       },
     }),
   };
@@ -273,62 +260,12 @@ export default function PresentDrawPage() {
         </header>
 
         {/* ROLLING VIEW */}
-        <AnimatePresence mode="wait">
-          {phase === "ROLLING" && winners.length === 1 && (
+        {winners.length > 0 && (
+          <div className="flex flex-col gap-6">
             <motion.div
-              key="rolling"
+              key="winners-grid"
               initial={{ opacity: 0, y: 16 }}
               animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -16 }}
-              transition={{ duration: 0.35 }}
-              className="relative overflow-hidden rounded-3xl border border-amber-200/20 bg-linear-to-br from-emerald-900/70 via-emerald-950/80 to-black/40 p-8 shadow-[0_25px_90px_rgba(0,0,0,0.6)]"
-            >
-              <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.12),transparent_55%)]" />
-              <div className="relative flex flex-col items-center justify-center gap-3 py-12">
-                <p className="mb-1 text-sm uppercase tracking-[0.25em] text-amber-200/80">
-                  Rolling…
-                </p>
-
-                <div className="relative rounded-full border border-emerald-200/30 bg-black/50 px-10 py-6 shadow-[0_16px_48px_rgba(0,0,0,0.6)] backdrop-blur">
-                  {/* This animates between names without showing the whole list */}
-                  <AnimatePresence mode="popLayout">
-                    <motion.span
-                      key={rollingPool[activeIndex]?.contestantId || "empty"}
-                      initial={{ opacity: 0, y: 18, filter: "blur(6px)" }}
-                      animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
-                      exit={{ opacity: 0, y: -18, filter: "blur(6px)" }}
-                      transition={{ duration: 0.18, ease: "easeOut" }}
-                      className="block text-center leading-tight text-amber-50 drop-shadow-[0_6px_24px_rgba(0,0,0,0.65)]"
-                      style={{
-                        fontSize: "clamp(38px, 5vw, 50px)",
-                        fontWeight: 800,
-                        letterSpacing: "-0.01em",
-                        wordBreak: "break-word",
-                      }}
-                    >
-                      {rollingPool[activeIndex]?.name ?? ""}
-                    </motion.span>
-                  </AnimatePresence>
-                </div>
-
-                <p className="mt-4 text-gray-300">
-                  {winners.length > 0
-                    ? `Winners to reveal: ${winners.length}`
-                    : "No winners yet."}
-                </p>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        {/* REVEALED VIEW */}
-        <AnimatePresence mode="wait">
-          {(phase === "REVEALED" || winners.length > 1) && (
-            <motion.div
-              key="revealed"
-              initial={{ opacity: 0, y: 16 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -16 }}
               transition={{ duration: 0.35 }}
               className="rounded-3xl border border-amber-200/20 bg-linear-to-br from-emerald-900/80 via-black/40 to-emerald-950/70 p-8 shadow-[0_25px_90px_rgba(0,0,0,0.6)]"
             >
@@ -341,40 +278,63 @@ export default function PresentDrawPage() {
                 initial="hidden"
                 animate="show"
               >
-                {winners.map((winner, index) => (
-                  <motion.div
-                    key={winner.contestantId}
-                    variants={itemVariants}
-                    custom={index}
-                    // whileHover={{ scale: 1.02, y: -4 }}
-                    transition={{ type: "spring", stiffness: 260, damping: 18 }}
-                    className="flex min-h-30 items-center justify-center rounded-2xl bg-white/10 p-6 text-center shadow-lg ring-1 ring-amber-200/30 backdrop-blur"
-                  >
-                    <motion.span
-                      variants={nameVariants}
+                {winners.map((winner, index) => {
+                  const displayName =
+                    phase === "REVEALED"
+                      ? winner?.name ?? ""
+                      : poolLen > 0
+                      ? rollingPool[getRollingIndex(index)]?.name ?? ""
+                      : "";
+                  const displayKey = `${phase}-${
+                    displayName || "blank"
+                  }-${index}`;
+
+                  return (
+                    <motion.div
+                      key={winner.contestantId}
+                      variants={itemVariants}
                       custom={index}
-                      className="block whitespace-normal text-amber-50 drop-shadow-[0_4px_14px_rgba(0,0,0,0.55)]"
-                      style={{
-                        fontWeight: 800,
-                        fontSize: "clamp(30px, 3vw, 35px)",
-                        wordBreak: "break-word",
-                        lineHeight: 1.05,
+                      transition={{
+                        type: "spring",
+                        stiffness: 260,
+                        damping: 18,
                       }}
+                      className="flex min-h-30 items-center justify-center rounded-2xl bg-white/10 p-6 text-center shadow-lg ring-1 ring-amber-200/30 backdrop-blur"
                     >
-                      {winner.name}
-                    </motion.span>
-                  </motion.div>
-                ))}
+                      <AnimatePresence mode="popLayout">
+                        <motion.span
+                          key={displayKey}
+                          initial={{ opacity: 0, y: 12, filter: "blur(6px)" }}
+                          animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+                          exit={{ opacity: 0, y: -12, filter: "blur(6px)" }}
+                          transition={{
+                            duration: 0.22,
+                            ease: [0.16, 1, 0.3, 1],
+                          }}
+                          className="block whitespace-normal text-amber-50 drop-shadow-[0_4px_14px_rgba(0,0,0,0.55)]"
+                          style={{
+                            fontWeight: 800,
+                            fontSize: "clamp(30px, 3vw, 35px)",
+                            wordBreak: "break-word",
+                            lineHeight: 1.05,
+                          }}
+                        >
+                          {displayName}
+                        </motion.span>
+                      </AnimatePresence>
+                    </motion.div>
+                  );
+                })}
               </motion.div>
             </motion.div>
-          )}
-        </AnimatePresence>
+          </div>
+        )}
 
         {loading && <p className="text-center text-gray-400">Loading...</p>}
       </div>
 
       {/* Controls */}
-      {winners.length === 1 && (
+      {winners.length > 0 && (
         <div className="fixed bottom-4 right-4 flex gap-2 text-sm text-white/80">
           {phase === "ROLLING" ? (
             <button
@@ -388,7 +348,7 @@ export default function PresentDrawPage() {
               className="rounded bg-linear-to-r from-emerald-600 to-emerald-500 px-3 py-2 font-semibold shadow-lg shadow-emerald-900/40 transition hover:brightness-110"
               onClick={restartRolling}
             >
-              🔄 Roll Again
+              🔄 Replay
             </button>
           )}
         </div>
