@@ -264,8 +264,7 @@ export default function PresentDrawPage() {
             className="font-extrabold leading-tight text-transparent bg-linear-to-r from-amber-200 via-white to-emerald-200 bg-clip-text drop-shadow-[0_12px_32px_rgba(0,0,0,0.45)]"
             style={{ fontSize: "clamp(48px, 5vw, 96px)" }}
           >
-            {"Pemenang "}{" "}
-            {data?.prize?.name ?? (loading ? "Loading..." : "Prize")}
+            {loading ? "Loading…" : `Pemenang ${data?.prize?.name}`}
           </h1>
           {/* <p className="text-lg text-emerald-50/80">
             {data ? new Date(data.createdAt).toLocaleString() : ""}
