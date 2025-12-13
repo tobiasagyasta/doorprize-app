@@ -35,8 +35,8 @@ type DrawWinner = {
 };
 
 export default function SessionPage() {
-  const params = useParams<{ sessionId: string }>();
-  const sessionId = params?.sessionId ?? "";
+  const params = useParams<{ sessionID: string }>();
+  const sessionId = params?.sessionID ?? "";
 
   const [file, setFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);

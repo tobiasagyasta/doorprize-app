@@ -27,8 +27,8 @@ type DrawData = {
 type Phase = "ROLLING" | "REVEALED";
 
 export default function PresentDrawPage() {
-  const params = useParams<{ sessionId: string; drawId: string }>();
-  const sessionId = params?.sessionId;
+  const params = useParams<{ sessionID: string; drawId: string }>();
+  const sessionId = params?.sessionID;
   const drawId = params?.drawId;
 
   const [data, setData] = useState<DrawData | null>(null);
