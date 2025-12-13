@@ -479,27 +479,17 @@ export default function SessionPage() {
           <thead>
             <tr className="border-b">
               <th className="py-2 pr-4">Name</th>
-              <th className="py-2">Status</th>
             </tr>
           </thead>
           <tbody>
             {displayedContestants.map((contestant) => (
               <tr key={contestant.id} className="border-b last:border-0">
                 <td className="py-2 pr-4">{contestant.name}</td>
-                <td className="py-2">
-                  {contestant.hasPrize ? (
-                    <span className="text-green-700">
-                      Won: {contestant.prizeName ?? "Prize"}
-                    </span>
-                  ) : (
-                    <span className="text-blue-700">Eligible</span>
-                  )}
-                </td>
               </tr>
             ))}
             {contestants.length === 0 && (
               <tr>
-                <td className="py-2 pr-4" colSpan={2}>
+                <td className="py-2 pr-4" colSpan={1}>
                   {contestantLoading
                     ? "Loading contestants..."
                     : "No contestants yet."}
