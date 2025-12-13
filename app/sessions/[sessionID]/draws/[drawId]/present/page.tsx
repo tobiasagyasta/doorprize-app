@@ -42,6 +42,7 @@ export default function PresentDrawPage() {
 
   const [phase, setPhase] = useState<Phase>("ROLLING");
   const [activeIndex, setActiveIndex] = useState(0);
+  const [timeLeftMs, setTimeLeftMs] = useState(0);
   const [windowSize, setWindowSize] = useState({ width: 0, height: 0 });
 
   useEffect(() => {
@@ -147,6 +148,23 @@ export default function PresentDrawPage() {
   }, []);
 
   useEffect(() => {
+    const body = document.body;
+    const prevOverflow = body.style.overflow;
+    const styleTag = document.createElement("style");
+    styleTag.id = "hide-scrollbar-present";
+    styleTag.textContent = `
+      body::-webkit-scrollbar { display: none; }
+      body { -ms-overflow-style: none; scrollbar-width: none; }
+    `;
+    document.head.appendChild(styleTag);
+    body.style.overflow = "auto";
+    return () => {
+      styleTag.remove();
+      body.style.overflow = prevOverflow;
+    };
+  }, []);
+
+  useEffect(() => {
     if (phase === "REVEALED" && winners.length > 0) {
       setShowConfetti(true);
 
@@ -178,6 +196,40 @@ export default function PresentDrawPage() {
 
     return () => clearInterval(timer);
   }, [phase, poolLen]);
+
+  const autoRevealDelay = useMemo(() => {
+    if (winners.length === 0) return 0;
+    return winners.length > 1 ? 5000 : 10000;
+  }, [winners.length]);
+
+  // Auto reveal timer for all draws (5s for multi-winner, 10s for single-winner)
+  useEffect(() => {
+    if (phase !== "ROLLING") return;
+    if (autoRevealDelay === 0) return;
+
+    const timer = setTimeout(() => stopAndReveal(), autoRevealDelay);
+
+    return () => clearTimeout(timer);
+  }, [phase, autoRevealDelay]);
+
+  // Countdown display sync with auto reveal
+  useEffect(() => {
+    if (phase !== "ROLLING" || autoRevealDelay === 0) {
+      setTimeLeftMs(0);
+      return;
+    }
+
+    const start = Date.now();
+    setTimeLeftMs(autoRevealDelay);
+
+    const interval = setInterval(() => {
+      const elapsed = Date.now() - start;
+      const remaining = Math.max(0, autoRevealDelay - elapsed);
+      setTimeLeftMs(remaining);
+    }, 100);
+
+    return () => clearInterval(interval);
+  }, [phase, autoRevealDelay]);
 
   // Winner grid animation (simple, readable)
   const gridVariants = useMemo(
@@ -257,6 +309,11 @@ export default function PresentDrawPage() {
             {data ? new Date(data.createdAt).toLocaleString() : ""}
           </p> */}
           {error && <p className="mt-2 text-sm text-red-400">{error}</p>}
+          {phase === "ROLLING" && autoRevealDelay > 0 && (
+            <p className="mt-3 inline-flex items-center gap-2 rounded-full border border-amber-200/30 bg-white/5 px-4 py-2 text-md font-semibold text-amber-50/90 shadow">
+              Reveal in {Math.ceil(timeLeftMs / 1000)}s
+            </p>
+          )}
         </header>
 
         {/* ROLLING VIEW */}
@@ -334,23 +391,14 @@ export default function PresentDrawPage() {
       </div>
 
       {/* Controls */}
-      {winners.length > 0 && (
+      {winners.length > 0 && phase === "REVEALED" && (
         <div className="fixed bottom-4 right-4 flex gap-2 text-sm text-white/80">
-          {phase === "ROLLING" ? (
-            <button
-              className="rounded bg-linear-to-r from-rose-600 to-amber-500 px-3 py-2 font-semibold shadow-lg shadow-rose-900/40 transition hover:brightness-110"
-              onClick={stopAndReveal}
-            >
-              ⏹ Stop & Reveal
-            </button>
-          ) : (
-            <button
-              className="rounded bg-linear-to-r from-emerald-600 to-emerald-500 px-3 py-2 font-semibold shadow-lg shadow-emerald-900/40 transition hover:brightness-110"
-              onClick={restartRolling}
-            >
-              🔄 Replay
-            </button>
-          )}
+          <button
+            className="rounded bg-linear-to-r from-emerald-600 to-emerald-500 px-3 py-2 font-semibold shadow-lg shadow-emerald-900/40 transition hover:brightness-110"
+            onClick={restartRolling}
+          >
+            🔄 Replay
+          </button>
         </div>
       )}
     </div>
