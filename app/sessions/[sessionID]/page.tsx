@@ -35,8 +35,8 @@ type DrawWinner = {
 };
 
 export default function SessionPage() {
-  const params = useParams<{ sessionID: string }>();
-  const sessionId = params?.sessionID ?? "";
+  const params = useParams<{ sessionId: string }>();
+  const sessionId = params?.sessionId ?? "";
 
   const [file, setFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
@@ -166,6 +166,8 @@ export default function SessionPage() {
   }, [sessionId]);
 
   useEffect(() => {
+    console.log("sessionId:", sessionId);
+    console.log("contestants url:", `/api/sessions/${sessionId}/contestants`);
     fetchContestants();
     fetchPrizes();
     fetchSessionDetails();
@@ -670,11 +672,12 @@ export default function SessionPage() {
             <h3 className="font-semibold">Presentation Links</h3>
             <ul className="mt-2 space-y-1 text-sm">
               {drawList.map((draw) => (
-                <li key={draw.id} className="flex items-center justify-between gap-2">
+                <li
+                  key={draw.id}
+                  className="flex items-center justify-between gap-2"
+                >
                   <div>
-                    <p className="font-medium">
-                      {draw.prize?.name ?? "Prize"}
-                    </p>
+                    <p className="font-medium">{draw.prize?.name ?? "Prize"}</p>
                     <p className="text-xs text-gray-600">
                       {new Date(draw.createdAt).toLocaleString()}
                     </p>
